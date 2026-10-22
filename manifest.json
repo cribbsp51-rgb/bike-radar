@@ -1,6 +1,9 @@
 {
-  "short_name": "BikeRadar",
   "name": "AI Bicycle Overtake Radar",
+  "short_name": "Bike Radar",
+  "description": "Embedded version tracking file metadata.",
+  "version": "3.0.0",
+  "start_url": "./index.html",
   "icons": [
     {
       "src": "icon.png",
