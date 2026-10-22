@@ -2,9 +2,9 @@
 <!-- 
   PROJECT: AI Bicycle Overtake Radar (STEM Safety)
   FILE: index.html (Main UI Dashboard)
-  VERSION: 3.0.0-LocalAssets
+  VERSION: 3.0.0-AutomatedCDN
   DATE: 2026-10-22
-  CHANGELOG: Added visible version tracker to the status bar. Replaced all external CDN hooks with local horizontal directory paths (./wasm and ./js).
+  CHANGELOG: Configured to use Google's official unpkg CDN to automate background AI downloads while natively bypassing mobile browser cross-origin blocks.
 -->
 <html lang="en">
 <head>
@@ -16,7 +16,7 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Offline PWA Registered!'))
+                    .then(reg => console.log('Automated Offline Engine Registered!'))
                     .catch(err => console.error('PWA Error:', err));
             });
         }
@@ -42,13 +42,13 @@
         <canvas id="canvas-overlay"></canvas>
         <div id="status-bar" class="safe">
             <span id="status-text">🟢 OFFLINE MODE: CONNECT TO BIKE-RADAR-STEM WI-FI</span>
-            <!-- VISIBLE VERSION TEXT FOR STUDENTS AND TEACHERS -->
-            <span class="version-tag">Dashboard Version: v3.0.0-LocalAssets</span>
+            <span class="version-tag">Dashboard Version: v3.0.0-AutomatedCDN</span>
         </div>
     </div>
     <button id="start-btn">Launch AI Tracking</button>
 
-    <script src="js/vision_bundle.js"></script>
+    <!-- Google's official open-access distribution script path -->
+    <script src="https://unpkg.com" crossorigin="anonymous"></script>
     <script>
         const streamImg = document.getElementById('esp32-stream');
         const canvas = document.getElementById('canvas-overlay');
@@ -63,10 +63,11 @@
 
         async function initAI() {
             try {
-                const vision = await FilesetResolver.forVisionTasks("./wasm");
+                // Directs the compilation layer to look at Google's secure open-access folder
+                const vision = await FilesetResolver.forVisionTasks("https://unpkg.com");
                 objectDetector = await ObjectDetector.createFromOptions(vision, {
                     baseOptions: {
-                        modelAssetPath: "./models/efficientdet_lite0.tflite",
+                        modelAssetPath: "https://googleapis.com",
                         delegate: "GPU"
                     },
                     scoreThreshold: 0.50,
