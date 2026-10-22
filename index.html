@@ -4,7 +4,7 @@
   FILE: index.html (Main UI Dashboard)
   VERSION: 3.0.0-LocalAssets
   DATE: 2026-10-22
-  CHANGELOG: Replaced all external jsDelivr and Unpkg CDN hooks with local horizontal directory paths (./wasm and ./js) to bypass Android CORS security firewalls.
+  CHANGELOG: Added visible version tracker to the status bar. Replaced all external CDN hooks with local horizontal directory paths (./wasm and ./js).
 -->
 <html lang="en">
 <head>
@@ -12,7 +12,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Bicycle Overtake Radar</title>
     <link rel="manifest" href="manifest.json">
-    
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -22,14 +21,14 @@
             });
         }
     </script>
-
     <style>
         body { font-family: sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding: 15px; }
         h1 { color: #00e676; margin-bottom: 5px; }
         .radar-box { position: relative; width: 100%; max-width: 480px; margin: 0 auto; background: #000; border-radius: 12px; overflow: hidden; }
         #esp32-stream { width: 100%; height: auto; display: block; min-height: 240px; }
         #canvas-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        #status-bar { padding: 12px; font-weight: bold; background: #2a2a2a; border-top: 1px solid #333; font-size: 18px; }
+        #status-bar { padding: 12px; font-weight: bold; background: #2a2a2a; border-top: 1px solid #333; font-size: 16px; }
+        .version-tag { font-size: 11px; color: #888; display: block; margin-top: 5px; font-weight: normal; }
         .safe { color: #00e676; }
         .danger { color: #ff1744; background: #4a000e; animation: flash 0.4s infinite alternate; }
         @keyframes flash { from { background: #4a000e; } to { background: #ff1744; } }
@@ -37,25 +36,26 @@
     </style>
 </head>
 <body>
-
     <h1>🚲 AI Overtake Radar</h1>
     <div class="radar-box">
         <img id="esp32-stream" crossorigin="anonymous" src="http://192.168.4" alt="Searching for Bicycle Camera..." />
         <canvas id="canvas-overlay"></canvas>
-        <div id="status-bar" class="safe">🟢 OFFLINE MODE: CONNECT TO BIKE-RADAR-STEM WI-FI</div>
+        <div id="status-bar" class="safe">
+            <span id="status-text">🟢 OFFLINE MODE: CONNECT TO BIKE-RADAR-STEM WI-FI</span>
+            <!-- VISIBLE VERSION TEXT FOR STUDENTS AND TEACHERS -->
+            <span class="version-tag">Dashboard Version: v3.0.0-LocalAssets</span>
+        </div>
     </div>
     <button id="start-btn">Launch AI Tracking</button>
 
-    <!-- Secure open-source delivery path for the MediaPipe vision engine -->
-    <script src="https://unpkg.com" crossorigin="anonymous"></script>
-
+    <script src="js/vision_bundle.js"></script>
     <script>
         const streamImg = document.getElementById('esp32-stream');
         const canvas = document.getElementById('canvas-overlay');
         const ctx = canvas.getContext('2d');
         const statusBar = document.getElementById('status-bar');
+        const statusText = document.getElementById('status-text');
         const startBtn = document.getElementById('start-btn');
-        
         let objectDetector;
         let trackedVehicles = {}; 
         let vehicleIdCounter = 100; 
@@ -63,19 +63,18 @@
 
         async function initAI() {
             try {
-                // Tells the engine to fetch binaries from a secure, CORS-permissive source
-                const vision = await FilesetResolver.forVisionTasks("https://unpkg.com");
+                const vision = await FilesetResolver.forVisionTasks("./wasm");
                 objectDetector = await ObjectDetector.createFromOptions(vision, {
                     baseOptions: {
-                        modelAssetPath: "https://googleapis.com",
+                        modelAssetPath: "./models/efficientdet_lite0.tflite",
                         delegate: "GPU"
                     },
                     scoreThreshold: 0.50,
                     runningMode: "VIDEO"
                 });
-                statusBar.innerText = "🟢 RADAR ACTIVE: ROAD CLEAR";
+                statusText.innerText = "🟢 RADAR ACTIVE: ROAD CLEAR";
             } catch (e) {
-                statusBar.innerText = "❌ AI ENGINE ERROR: REBOOT SYSTEM";
+                statusText.innerText = "❌ AI ENGINE ERROR: REBOOT SYSTEM";
                 console.error(e);
             }
         }
@@ -85,10 +84,8 @@
             const yA = Math.max(boxA.originY, boxB.originY);
             const xB = Math.min(boxA.originX + boxA.width, boxB.originX + boxB.width);
             const yB = Math.min(boxA.originY + boxA.height, boxB.originY + boxB.height);
-            
             const interArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
             if (interArea === 0) return 0;
-
             const boxAArea = boxA.width * boxA.height;
             const boxBArea = boxB.width * boxB.height;
             return interArea / (boxAArea + boxBArea - interArea);
@@ -98,112 +95,63 @@
             const now = performance.now();
             let newTrackedVehicles = {};
             let globalDangerDetected = false;
-
-            const validDetections = currentDetections.filter(det => 
-                ['car', 'truck', 'bus', 'motorcycle'].includes(det.categories.categoryName)
-            );
-
+            const validDetections = currentDetections.filter(det => ['car', 'truck', 'bus', 'motorcycle'].includes(det.categories.categoryName));
+            
             validDetections.forEach(det => {
                 const currentBox = det.boundingBox;
                 const currentArea = currentBox.width * currentBox.height;
                 let bestMatchId = null;
                 let bestIoU = 0.3; 
-
                 for (const id in trackedVehicles) {
                     const iou = calculateIoU(currentBox, trackedVehicles[id].box);
-                    if (iou > bestIoU) {
-                        bestIoU = iou;
-                        bestMatchId = id;
-                    }
+                    if (iou > bestIoU) { bestIoU = iou; bestMatchId = id; }
                 }
-
                 if (bestMatchId) {
                     const previousData = trackedVehicles[bestMatchId];
                     const timeDelta = (now - previousData.lastUpdated) / 1000; 
                     const areaDelta = currentArea - previousData.area; 
                     const expansionRate = timeDelta > 0 ? (areaDelta / timeDelta) : 0;
-                    
                     let ttc = Infinity; 
-                    if (expansionRate > 0) {
-                        ttc = (2 * currentArea) / expansionRate;
-                    }
-
-                    newTrackedVehicles[bestMatchId] = {
-                        box: currentBox,
-                        area: currentArea,
-                        lastUpdated: now,
-                        ttc: ttc,
-                        label: det.categories.categoryName
-                    };
-
-                    if (ttc <= TTC_THRESHOLD) {
-                        globalDangerDetected = true;
-                    }
+                    if (expansionRate > 0) { ttc = (2 * currentArea) / expansionRate; }
+                    newTrackedVehicles[bestMatchId] = { box: currentBox, area: currentArea, lastUpdated: now, ttc: ttc, label: det.categories.categoryName };
+                    if (ttc <= TTC_THRESHOLD) { globalDangerDetected = true; }
                 } else {
                     vehicleIdCounter++;
-                    newTrackedVehicles[vehicleIdCounter] = {
-                        box: currentBox,
-                        area: currentArea,
-                        lastUpdated: now,
-                        ttc: Infinity,
-                        label: det.categories.categoryName
-                    };
+                    newTrackedVehicles[vehicleIdCounter] = { box: currentBox, area: currentArea, lastUpdated: now, ttc: Infinity, label: det.categories.categoryName };
                 }
             });
-
             trackedVehicles = newTrackedVehicles;
             return globalDangerDetected;
         }
 
         function detectFrame() {
-            if (!objectDetector || !streamImg.complete) {
-                requestAnimationFrame(detectFrame);
-                return;
-            }
-            
-            if (canvas.width !== streamImg.clientWidth) {
-                canvas.width = streamImg.clientWidth;
-                canvas.height = streamImg.clientHeight;
-            }
-
+            if (!objectDetector || !streamImg.complete) { requestAnimationFrame(detectFrame); return; }
+            if (canvas.width !== streamImg.clientWidth) { canvas.width = streamImg.clientWidth; canvas.height = streamImg.clientHeight; }
             const detections = objectDetector.detectForVideo(streamImg, performance.now());
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             const alertDriver = processDetections(detections.detections);
-
             for (const id in trackedVehicles) {
                 const vehicle = trackedVehicles[id];
                 const box = vehicle.box;
-
                 ctx.strokeStyle = vehicle.ttc <= TTC_THRESHOLD ? "#ff1744" : "#00e676";
                 ctx.lineWidth = 4;
                 ctx.strokeRect(box.originX, box.originY, box.width, box.height);
-
                 ctx.fillStyle = ctx.strokeStyle;
                 ctx.font = "bold 14px sans-serif";
                 const displayTTC = vehicle.ttc === Infinity ? "Calculating..." : vehicle.ttc.toFixed(1) + "s";
                 ctx.fillText(`ID: ${id} [${vehicle.label}] TTC: ${displayTTC}`, box.originX, box.originY - 5);
             }
-
             if (alertDriver) {
-                statusBar.innerText = "⚠️ DANGER: VEHICLE OVERTAKE IN PROGRESS!";
+                statusText.innerText = "⚠️ DANGER: VEHICLE OVERTAKE IN PROGRESS!";
                 statusBar.className = "danger";
                 if (navigator.vibrate) navigator.vibrate(200); 
             } else {
-                statusBar.innerText = "🟢 RADAR ACTIVE: ROAD CLEAR";
+                statusText.innerText = "🟢 RADAR ACTIVE: ROAD CLEAR";
                 statusBar.className = "safe";
             }
-
             requestAnimationFrame(detectFrame);
         }
-
-        startBtn.addEventListener('click', () => {
-            initAI().then(() => {
-                detectFrame();
-                startBtn.style.display = 'none';
-            });
-        });
+        startBtn.addEventListener('click', () => { initAI().then(() => { detectFrame(); startBtn.style.display = 'none'; }); });
     </script>
 </body>
 </html>
-
