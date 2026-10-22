@@ -1,41 +1,31 @@
 // sw.js - The Offline Cache Manager for Bike Radar STEM Project
-const CACHE_NAME = 'bike-radar-ai-v3';
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = 'bike-radar-v1';
+const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './js/vision_bundle.js',
-  './wasm/vision_wasm_internal.wasm',
-  './wasm/vision_wasm_internal.js',
-  './wasm/vision_wasm_simd_internal.wasm',
-  './models/efficientdet_lite0.tflite'
+  'https://jsdelivr.net'
 ];
 
-// Install Event: Save everything to physical phone storage immediately on first load
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('Downloading and caching LiteRT AI assets offline...');
-      return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+// Install Event: Force-cache all core dashboard and library assets 100% offline
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE_NAME).then((c) => {
+      console.log('Bike Radar PWA: AI Assets successfully cached for road use!');
+      return c.addAll(ASSETS);
+    })
   );
 });
 
-// Activate Event: Claim control immediately
-self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
-});
-
-// Fetch Event: Serve files from storage when offline on the road (Bypass cellular network)
-self.addEventListener('fetch', (event) => {
-  // Let the live video stream pass through directly without caching
-  if (event.request.url.includes('192.168.4.1')) {
-    return event.respondWith(fetch(event.request));
+// Fetch Event: Run entirely offline from phone storage, bypass cache ONLY for raw hardware feed
+self.addEventListener('fetch', (e) => {
+  // CRITICAL BYPASS: Let the live ESP32 camera video packets stream freely without bloating cache
+  if (e.request.url.includes('192.168.4.1')) {
+    return e.respondWith(fetch(e.request));
   }
-
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request);
-    })
+  
+  // Serve everything else instantly from the secure offline phone storage
+  e.respondWith(
+    caches.match(e.request).then((res) => res || fetch(e.request))
   );
 });
