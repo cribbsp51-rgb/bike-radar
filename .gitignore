@@ -426,3 +426,11 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# Microsoft Word Temporary / Lock files (Prevents corrupted docx uploads)
+~$*.docx
+*.tmp
+
+# Local text backups or notes you don't want public
+*.log
+local_notes.txt
