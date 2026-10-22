@@ -1,28 +1,27 @@
-// sw.js - The Offline Cache Manager for Bike Radar STEM Project
 /* 
   PROJECT: AI Bicycle Overtake Radar (STEM Safety)
   FILE: sw.js (PWA Offline Service Worker Caching Loop)
   VERSION: 3.0.0-LocalAssets
   DATE: 2026-10-22
-  CHANGELOG: Updated matching local file arrays to automate the background caching sequence from identical origin folders. Added a cache buster variable update string.
+  CHANGELOG: Configured to cache local repository folder assets for zero-internet functionality.
 */
 
-const CACHE_NAME = 'bike-radar-v3.0.0'; // Changing this string forces the phone to update!
+const CACHE_NAME = 'bike-radar-v3.0.0-LocalAssets';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  'https://unpkg.com',
-  'https://unpkg.com',
-  'https://unpkg.com',
-  'https://unpkg.com',
-  'https://googleapis.com'
+  './js/vision_bundle.js',
+  './wasm/vision_wasm_internal.js',
+  './wasm/vision_wasm_internal.wasm',
+  './wasm/vision_wasm_simd_internal.wasm',
+  './models/efficientdet_lite0.tflite'
 ];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((c) => {
-      console.log('Automated Cache Engine: Syncing AI binaries offline...');
+      console.log('Automated Cache Sync Complete for v3.0.0-LocalAssets!');
       return c.addAll(ASSETS);
     })
   );
