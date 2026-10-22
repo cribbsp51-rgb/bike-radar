@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Bicycle Overtake Radar</title>
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- PWA Offline Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Offline PWA Registered!'))
+                    .catch(err => console.error('PWA Error:', err));
+            });
+        }
+    </script>
+
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding: 15px; }
+        h1 { color: #00e676; margin-bottom: 5px; }
+        .radar-box { position: relative; width: 100%; max-width: 480px; margin: 0 auto; background: #000; border-radius: 12px; overflow: hidden; }
+        #esp32-stream { width: 100%; height: auto; display: block; min-height: 240px; }
+        #canvas-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        #status-bar { padding: 12px; font-weight: bold; background: #2a2a2a; border-top: 1px solid #333; font-size: 18px; }
+        .safe { color: #00e676; }
+        .danger { color: #ff1744; background: #4a000e; animation: flash 0.4s infinite alternate; }
+        @keyframes flash { from { background: #4a000e; } to { background: #ff1744; } }
+        button { background: #00e676; border: none; padding: 15px 30px; font-weight: bold; border-radius: 6px; margin-top: 15px; cursor: pointer; font-size: 16px; }
+    </style>
+</head>
+<body>
+
+    <h1>🚲 AI Overtake Radar</h1>
+    <div class="radar-box">
+        <!-- Connects to the ESP32-CAM local Access Point video feed -->
+        <img id="esp32-stream" crossorigin="anonymous" src="http://192.168.4.1:81/stream" alt="Searching for Bicycle Camera..." />
+        <canvas id="canvas-overlay"></canvas>
+        <div id="status-bar" class="safe">🟢 OFFLINE MODE: CONNECT TO BIKE-RADAR-STEM WI-FI</div>
+    </div>
+    <button id="start-btn">Launch AI Tracking</button>
+
+    <!-- Framework scripts loaded internally via the local PWA directory cache -->
+    <script src="js/vision_bundle.js"></script>
+
+    <script>
+        const streamImg = document.getElementById('esp32-stream');
+        const canvas = document.getElementById('canvas-overlay');
+        const ctx = canvas.getContext('2d');
+        const statusBar = document.getElementById('status-bar');
+        const startBtn = document.getElementById('start-btn');
+        
+        let objectDetector;
+        let trackedVehicles = {}; // Memory buffer to hold persistent unique tracking IDs
+        let vehicleIdCounter = 100; // Starting unique ID for vehicles
+        const TTC_THRESHOLD = 2.5; // Trigger safety alarm if vehicle is less than 2.5 seconds away
+
+        // 1. Initialize Google LiteRT framework out of local offline wasm assets
+        async function initAI() {
+            try {
+                const vision = await FilesetResolver.forVisionTasks("./wasm");
+                objectDetector = await ObjectDetector.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: "./models/efficientdet_lite0.tflite",
+                        delegate: "GPU"
+                    },
+                    scoreThreshold: 0.50,
+                    runningMode: "VIDEO"
+                });
+                statusBar.innerText = "🟢 RADAR ACTIVE: ROAD CLEAR";
+            } catch (e) {
+                statusBar.innerText = "❌ AI ENGINE ERROR: REBOOT SYSTEM";
+                console.error(e);
+            }
+        }
+
+        // Helper: Calculate Intersection-over-Union (IoU) to pair objects across frames
+        function calculateIoU(boxA, boxB) {
+            const xA = Math.max(boxA.originX, boxB.originX);
+            const yA = Math.max(boxA.originY, boxB.originY);
+            const xB = Math.min(boxA.originX + boxA.width, boxB.originX + boxB.width);
+            const yB = Math.min(boxA.originY + boxA.height, boxB.originY + boxB.height);
+            
+            const interArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
+            if (interArea === 0) return 0;
+
+            const boxAArea = boxA.width * boxA.height;
+            const boxBArea = boxB.width * boxB.height;
+            return interArea / (boxAArea + boxBArea - interArea);
+        }
+
+        // 2. Core Tracking and Time-To-Collision (TTC) Algorithmic Pipeline
+        function processDetections(currentDetections) {
+            const now = performance.now();
+            let newTrackedVehicles = {};
+            let globalDangerDetected = false;
+
+            // Filter for motor vehicles matching Req 1
+            const validDetections = currentDetections.filter(det => 
+                ['car', 'truck', 'bus', 'motorcycle'].includes(det.categories.categoryName)
+            );
+
+            validDetections.forEach(det => {
+                const currentBox = det.boundingBox;
+                const currentArea = currentBox.width * currentBox.height;
+                let bestMatchId = null;
+                let bestIoU = 0.3; // Minimum overlap threshold to consider it the same vehicle
+
+                // Compare new bounding box against old tracking boxes (Req 2)
+                for (const id in trackedVehicles) {
+                    const iou = calculateIoU(currentBox, trackedVehicles[id].box);
+                    if (iou > bestIoU) {
+                        bestIoU = iou;
+                        bestMatchId = id;
+                    }
+                }
+
+                if (bestMatchId) {
+                    // Existing vehicle tracked across frames! Calculate physics variables
+                    const previousData = trackedVehicles[bestMatchId];
+                    const timeDelta = (now - previousData.lastUpdated) / 1000; // convert to seconds
+                    const areaDelta = currentArea - previousData.area; // growth rate (Req 3)
+
+                    // Estimate closing speed based on optical area expansion (Req 4)
+                    const expansionRate = timeDelta > 0 ? (areaDelta / timeDelta) : 0;
+                    
+                    // Default to safe infinite time
+                    let ttc = Infinity; 
+
+                    if (expansionRate > 0) {
+                        // Optical flow formula for Time-to-Collision (Req 5)
+                        ttc = (2 * currentArea) / expansionRate;
+                    }
+
+                    newTrackedVehicles[bestMatchId] = {
+                        box: currentBox,
+                        area: currentArea,
+                        lastUpdated: now,
+                        ttc: ttc,
+                        label: det.categories.categoryName
+                    };
+
+                    // Evaluate safety threshold envelope (Req 6)
+                    if (ttc <= TTC_THRESHOLD) {
+                        globalDangerDetected = true;
+                    }
+                } else {
+                    // New vehicle spotted, assign a new persistent Tracking ID
+                    vehicleIdCounter++;
+                    newTrackedVehicles[vehicleIdCounter] = {
+                        box: currentBox,
+                        area: currentArea,
+                        lastUpdated: now,
+                        ttc: Infinity,
+                        label: det.categories.categoryName
+                    };
+                }
+            });
+
+            // Clean memory: carry over old vehicles if they briefly vanished for a split frame
+            trackedVehicles = newTrackedVehicles;
+            return globalDangerDetected;
+        }
+
+        // 3. Main Video Frame Animation Loop
+        function detectFrame() {
+            if (!objectDetector || !streamImg.complete) {
+                requestAnimationFrame(detectFrame);
+                return;
+            }
+            
+            if (canvas.width !== streamImg.clientWidth) {
+                canvas.width = streamImg.clientWidth;
+                canvas.height = streamImg.clientHeight;
+            }
+
+            // Run inference locally using LiteRT web runtime
+            const detections = objectDetector.detectForVideo(streamImg, performance.now());
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Execute math tracking engine
+            const alertDriver = processDetections(detections.detections);
+
+            // Render HUD graphic overlays on top of the video canvas
+            for (const id in trackedVehicles) {
+                const vehicle = trackedVehicles[id];
+                const box = vehicle.box;
+
+                // Color profiles: change individual tracking boxes based on imminent danger status
+                ctx.strokeStyle = vehicle.ttc <= TTC_THRESHOLD ? "#ff1744" : "#00e676";
+                ctx.lineWidth = 4;
+                ctx.strokeRect(box.originX, box.originY, box.width, box.height);
+
+                // Print the unique Tracking ID and calculated TTC text on screen
+                ctx.fillStyle = ctx.strokeStyle;
+                ctx.font = "bold 14px sans-serif";
+                const displayTTC = vehicle.ttc === Infinity ? "Calculating..." : vehicle.ttc.toFixed(1) + "s";
+                ctx.fillText(`ID: ${id} [${vehicle.label}] TTC: ${displayTTC}`, box.originX, box.originY - 5);
+            }
+
+            // System Master Warning Level handling
+            if (alertDriver) {
+                statusBar.innerText = "⚠️ DANGER: VEHICLE OVERTAKE IN PROGRESS!";
+                statusBar.className = "danger";
+                // Trigger native Android haptic buzz (Req 6)
+                if (navigator.vibrate) navigator.vibrate(200); 
+            } else {
+                statusBar.innerText = "🟢 RADAR ACTIVE: ROAD CLEAR";
+                statusBar.className = "safe";
+            }
+
+            requestAnimationFrame(detectFrame);
+        }
+
+        startBtn.addEventListener('click', () => {
+            initAI().then(() => {
+                detectFrame();
+                startBtn.style.display = 'none';
+            });
+        });
+    </script>
+</body>
+</html>
