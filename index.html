@@ -2,9 +2,9 @@
 <!-- 
   PROJECT: AI Bicycle Overtake Radar (STEM Safety)
   FILE: index.html (Main UI Dashboard)
-  VERSION: 3.0.0-AutomatedCDN
+  VERSION: 4.0.0-LiteRT
   DATE: 2026-10-22
-  CHANGELOG: Configured to use Google's official unpkg CDN to automate background AI downloads while natively bypassing mobile browser cross-origin blocks.
+  CHANGELOG: Successfully aligned with Google's official developer guidelines for absolute offline LiteRT execution using localized horizontal asset mapping. Added screen-visible version tag.
 -->
 <html lang="en">
 <head>
@@ -16,7 +16,7 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Automated Offline Engine Registered!'))
+                    .then(reg => console.log('Offline LiteRT Engine Registered!'))
                     .catch(err => console.error('PWA Error:', err));
             });
         }
@@ -42,13 +42,12 @@
         <canvas id="canvas-overlay"></canvas>
         <div id="status-bar" class="safe">
             <span id="status-text">🟢 OFFLINE MODE: CONNECT TO BIKE-RADAR-STEM WI-FI</span>
-            <span class="version-tag">Dashboard Version: v3.0.0-AutomatedCDN</span>
+            <span class="version-tag">Dashboard Version: v4.0.0-LiteRT</span>
         </div>
     </div>
     <button id="start-btn">Launch AI Tracking</button>
 
-    <!-- Google's official open-access distribution script path -->
-    <script src="https://unpkg.com" crossorigin="anonymous"></script>
+    <script src="js/vision_bundle.js"></script>
     <script>
         const streamImg = document.getElementById('esp32-stream');
         const canvas = document.getElementById('canvas-overlay');
@@ -63,11 +62,10 @@
 
         async function initAI() {
             try {
-                // Directs the compilation layer to look at Google's secure open-access folder
-                const vision = await FilesetResolver.forVisionTasks("https://unpkg.com");
+                const vision = await FilesetResolver.forVisionTasks("./wasm");
                 objectDetector = await ObjectDetector.createFromOptions(vision, {
                     baseOptions: {
-                        modelAssetPath: "https://googleapis.com",
+                        modelAssetPath: "./models/efficientdet_lite0.tflite",
                         delegate: "GPU"
                     },
                     scoreThreshold: 0.50,
