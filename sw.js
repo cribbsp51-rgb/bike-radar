@@ -6,7 +6,7 @@
   CHANGELOG: Locks local repository folders into smartphone hardware memory to bypass all mobile cross-domain blocking firewalls natively.
 */
 
-const CACHE_NAME = 'bike-radar-v4.0.0-LiteRT';
+const CACHE_NAME = 'bike-radar-v4.0.1-fixed';
 const ASSETS = [
   './',
   './index.html',
