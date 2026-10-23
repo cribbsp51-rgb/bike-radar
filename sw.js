@@ -1,34 +1,33 @@
 /* 
   PROJECT: AI Bicycle Overtake Radar (STEM Safety)
   FILE: sw.js (PWA Offline Service Worker Caching Loop)
-  VERSION: 3.0.0-AutomatedCDN
+  VERSION: 4.0.0-LiteRT
   DATE: 2026-10-22
-  CHANGELOG: Configured to pull directly from Google's open-access unpkg CDN to automate and bundle all tracking assets into local smartphone storage memory.
+  CHANGELOG: Locks local repository folders into smartphone hardware memory to bypass all mobile cross-domain blocking firewalls natively.
 */
 
-const CACHE_NAME = 'bike-radar-v3.0.0-AutomatedCDN';
+const CACHE_NAME = 'bike-radar-v4.0.0-LiteRT';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  'https://unpkg.com',
-  'https://unpkg.com',
-  'https://unpkg.com',
-  'https://unpkg.com',
-  'https://googleapis.com'
+  './js/vision_bundle.js',
+  './wasm/vision_wasm_internal.js',
+  './wasm/vision_wasm_internal.wasm',
+  './wasm/vision_wasm_simd_internal.wasm',
+  './models/efficientdet_lite0.tflite'
 ];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((c) => {
-      console.log('Automated Cache Sync Complete for v3.0.0-AutomatedCDN!');
+      console.log('LiteRT Caching Engine: Syncing internal binaries offline!');
       return c.addAll(ASSETS);
     })
   );
 });
 
 self.addEventListener('fetch', (e) => {
-  // Let the live bicycle camera stream bypass the cache completely
   if (e.request.url.includes('192.168.4.1')) {
     return e.respondWith(fetch(e.request));
   }
