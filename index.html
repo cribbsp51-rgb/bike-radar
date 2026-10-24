@@ -20,290 +20,343 @@
         #dashboard-container {
             display: flex;
             flex-direction: column;
-            width: 100vw;
             height: 100vh;
+            width: 100vw;
             box-sizing: border-box;
-            position: relative;
         }
         #header {
+            background: linear-gradient(180deg, #14141f 0%, #0a0a0f 100%);
             padding: 12px;
-            background: linear-gradient(180deg, rgba(20,20,30,0.8) 0%, rgba(10,10,15,0) 100%);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 10;
+            text-align: center;
+            border-bottom: 1px solid #222233;
         }
-        .status-badge {
-            background-color: #155724;
-            color: #d4edda;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
+        h1 {
+            margin: 0;
+            font-size: 18px;
+            letter-spacing: 1px;
+            color: #eceff4;
+        }
+        #status-badge {
+            display: inline-block;
+            background: #d08770;
+            color: #0a0a0f;
+            font-size: 10px;
             font-weight: bold;
-            letter-spacing: 0.5px;
-            border: 1px solid #c3e6cb;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-top: 4px;
+            text-transform: uppercase;
         }
-        #viewscreen {
+        #viewport-wrapper {
             flex: 1;
-            background-color: #000000;
             position: relative;
+            background: #000000;
             display: flex;
             justify-content: center;
             align-items: center;
+            overflow: hidden;
         }
-        #stream-canvas {
+        #video-canvas {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
-        #control-panel {
-            padding: 16px;
-            background: rgba(15, 15, 25, 0.9);
-            border-top: 1px solid #222235;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            z-index: 10;
-            padding-bottom: 200px; /* Buffer space so real-time console overlay doesn't block buttons */
-        }
-        .btn {
-            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
-            color: white;
-            border: none;
-            padding: 14px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            transition: transform 0.1s;
-        }
-        .btn:active {
-            transform: scale(0.98);
-        }
-        /* Telemetry overlay layout styling */
         #telemetry-overlay {
             position: absolute;
-            top: 60px;
+            top: 12px;
             left: 12px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 8px;
+            background: rgba(10, 10, 15, 0.85);
+            border: 1px solid #4c566a;
             border-radius: 6px;
+            padding: 8px;
             font-family: monospace;
             font-size: 12px;
-            border-left: 3px solid #007bff;
             pointer-events: none;
-            display: none;
+        }
+        .tel-row {
+            margin-bottom: 4px;
+        }
+        .tel-val {
+            color: #88c0d0;
+            font-weight: bold;
+        }
+        #control-panel {
+            padding: 16px;
+            background: #14141f;
+            border-top: 1px solid #222233;
+            display: flex;
+            justify-content: center;
+            padding-bottom: calc(16px + env(safe-area-inset-bottom));
+        }
+        .btn {
+            background: #5e81ac;
+            color: #ffffff;
+            border: none;
+            padding: 14px 28px;
+            font-size: 15px;
+            font-weight: bold;
+            border-radius: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+            max-width: 280px;
+        }
+        .btn:active {
+            background: #4c566a;
+        }
+        /* Mobile Console Window Adjustments */
+        #mobile-debug-console {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 160px;
+            background: rgba(10, 10, 15, 0.98);
+            color: #a3be8c;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            overflow-y: auto;
+            z-index: 999999;
+            border-top: 2px solid #bf616a;
+            box-sizing: border-box;
+            padding: 6px;
+        }
+        #mobile-debug-logs div {
+            margin-bottom: 3px;
+            line-height: 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
         }
     </style>
 </head>
 <body>
 
-    <div id="dashboard-container">
-        <!-- TOP NAVIGATION & METRIC RIBBON -->
-        <div id="header">
-            <h1 style="margin: 0; font-size: 16px; font-weight: 600;">🚲 AI Overtake Radar</h1>
-            <span class="status-badge">🟢 OFFLINE MODE</span>
-        </div>
+<div id="dashboard-container">
+    <div id="header">
+        <h1>🚲 AI Overtake Radar Dashboard</h1>
+        <div id="status-badge">Offline Node Connected</div>
+    </div>
 
-        <!-- CAMERA VIEWSCREEN / TARGET CANVAS -->
-        <div id="viewscreen">
-            <!-- Simulated target placeholder or live MJPEG ESP32 video canvas -->
-            <div id="camera-fallback-msg" style="position: absolute; color: #555570; font-size: 14px; text-align: center;">
-                Searching for Bicycle Camera Stream...<br>
-                <span style="font-size: 11px; color: #3b3b4f;">SSID: Bike-Radar-STEM</span>
-            </div>
-            <canvas id="stream-canvas"></canvas>
-            
-            <!-- Dynamic HUD Telemetry Data Display -->
-            <div id="telemetry-overlay">
-                <div>IoU Match: <span id="telemetry-iou">0.00</span></div>
-                <div>TTC Est: <span id="telemetry-ttc">Infinity</span>s</div>
-            </div>
-        </div>
-
-        <!-- CONTROL PLATFORM INTERFACE -->
-        <div id="control-panel">
-            <button id="launch-btn" class="btn" onclick="toggleTracking()">Launch AI Tracking</button>
+    <div id="viewport-wrapper">
+        <!-- Live ADAS Tracking Environment Frame Canvas -->
+        <canvas id="video-canvas"></canvas>
+        
+        <!-- Live HUD Telemetry Readouts -->
+        <div id="telemetry-overlay">
+            <div class="tel-row">Target Tracked: <span id="hud-target" class="tel-val">NONE</span></div>
+            <div class="tel-row">Calculated IoU: <span id="hud-iou" class="tel-val">0.00</span></div>
+            <div class="tel-row">Time-to-Collision: <span id="hud-ttc" class="tel-val">Infinity</span></div>
+            <div class="tel-row">Alert Matrix: <span id="hud-alert" class="tel-val" style="color:#a3be8c;">CLEAR</span></div>
         </div>
     </div>
 
-    <!-- REAL-TIME MOBILE DEBUGGING CONSOLE -->
-    <div id="mobile-debug-console" style="
-        position: fixed; 
-        bottom: 0; 
-        left: 0; 
-        width: 100%; 
-        height: 180px; 
-        background: rgba(10, 10, 15, 0.95); 
-        color: #00ff66; 
-        font-family: monospace; 
-        font-size: 11px; 
-        overflow-y: auto; 
-        z-index: 999999; 
-        border-top: 2px solid #ff3333; 
-        padding: 8px;
-        box-sizing: border-box;
-        pointer-events: auto;
-    ">
-        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 4px; margin-bottom: 4px; color: #aaa;">
-            <span>📱 SYSTEM LOGS (Galaxy A36 ADAS Node)</span>
-            <button onclick="document.getElementById('mobile-debug-logs').innerHTML=''" style="background: #333; color: #fff; border: none; padding: 2px 6px; cursor: pointer; font-size: 10px;">Clear</button>
-        </div>
-        <div id="mobile-debug-logs"></div>
+    <div id="control-panel">
+        <button id="tracking-btn" class="btn" onclick="toggleTracking()">Launch AI Tracking</button>
     </div>
+</div>
 
-    <script>
-        // --- VISUAL LOGGING CORNERSTONE SYSTEM ---
-        (function() {
-            const logContainer = document.getElementById('mobile-debug-logs');
-            
-            function appendLog(message, type = 'info') {
-                const el = document.createElement('div');
-                el.style.marginBottom = '4px';
-                el.style.wordBreak = 'break-all';
-                
-                if (type === 'error') {
-                    el.style.color = '#ff3333';
-                    el.style.fontWeight = 'bold';
-                } else if (type === 'warn') {
-                    el.style.color = '#ffcc00';
-                }
-                
-                const now = new Date();
-                const timeStr = `[${now.toTimeString().split(' ')[0]}.${String(now.getMilliseconds()).padStart(3, '0')}]`;
-                
-                el.textContent = `${timeStr} ${message}`;
-                logContainer.appendChild(el);
-                logContainer.scrollTop = logContainer.scrollHeight;
-            }
+<!-- REAL-TIME MOBILE DEBUGGING CONSOLE OVERLAY -->
+<div id="mobile-debug-console">
+    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #3b4252; padding-bottom: 4px; margin-bottom: 4px; color: #d8dee9; font-weight: bold;">
+        <span>📱 SYSTEM ENGINE LOGS (Galaxy A36 ADAS)</span>
+        <button onclick="document.getElementById('mobile-debug-logs').innerHTML=''" style="background: #3b4252; color: #eceff4; border: none; padding: 1px 6px; cursor: pointer; font-size: 10px; border-radius: 3px;">Clear</button>
+    </div>
+    <div id="mobile-debug-logs"></div>
+</div>
 
-            const originalLog = console.log;
-            const originalError = console.error;
-            const originalWarn = console.warn;
+<script>
+    // Global State Management Boundaries
+    let isTracking = false;
+    let pipelineLoopId = null;
+    const canvas = document.getElementById('video-canvas');
+    const ctx = canvas.getContext('2d');
 
-            console.log = function(...args) {
-                originalLog.apply(console, args);
-                appendLog(args.join(' '), 'info');
-            };
+    // Synthetic Threat Tracking Simulation Variables
+    let mockVehicleY = 0; 
+    let mockVehicleWidth = 40;
+    let mockVehicleHeight = 30;
+    let previousBox = null;
 
-            console.error = function(...args) {
-                originalError.apply(console, args);
-                appendLog(args.join(' '), 'error');
-            };
-
-            console.warn = function(...args) {
-                originalWarn.apply(console, args);
-                appendLog(args.join(' '), 'warn');
-            };
-
-            window.addEventListener('error', function(e) {
-                appendLog(`Runtime Exception: ${e.message} at ${e.filename}:${e.lineno}`, 'error');
-            });
-
-            window.addEventListener('unhandledrejection', function(e) {
-                appendLog(`Unhandled Promise Rejection: ${e.reason}`, 'error');
-            });
-
-            console.log("Visual Logger Initialized. Awaiting LiteRT Canvas Pipeline...");
-        })();
-
-        // --- GLOBAL APP STATE & KINEMATIC ALGORITHMS ---
-        let isTracking = false;
-        let trackingInterval = null;
-        let simulatedBoxHistory = null;
-
-        function toggleTracking() {
-            const btn = document.getElementById('launch-btn');
-            const overlay = document.getElementById('telemetry-overlay');
-            const fallbackMsg = document.getElementById('camera-fallback-msg');
-            
-            if (!isTracking) {
-                console.log("Initializing LiteRT Runtime Engine...");
-                console.log("Configuring pipeline target: WebGPU Acceleration context...");
-                
-                // Emulating typical mobile hardware optimization check behavior
-                setTimeout(() => {
-                    console.error("AI ENGINE ERROR: GLES/WebGPU hardware acceleration block detected on target device driver. Falling back to multi-threaded Wasm compilation pipeline.");
-                }, 600);
-
-                isTracking = true;
-                btn.innerText = "Stop AI Tracking";
-                btn.style.background = "linear-gradient(135deg, #dc3545 0%, #bd2130 100%)";
-                overlay.style.display = "block";
-                if(fallbackMsg) fallbackMsg.style.display = "none";
-                
-                // Core Execution Pipeline Simulation loop (33ms window frames for ~30 FPS tracking)
-                simulatedBoxHistory = [40, 50, 100, 150]; // Static initial template [xMin, yMin, xMax, yMax]
-                trackingInterval = setInterval(() => {
-                    executeTrackingLoopIteration();
-                }, 33);
-                
+    // --- PIPELINE CAPTURE AND HOOK INFRASTRUCTURE ---
+    (function injectVisualConsole() {
+        const logContainer = document.getElementById('mobile-debug-logs');
+        
+        function appendLog(message, type = 'info') {
+            const el = document.createElement('div');
+            if (type === 'error') {
+                el.style.color = '#bf616a'; // Nord Red
+                el.style.fontWeight = 'bold';
+            } else if (type === 'warn') {
+                el.style.color = '#ebcb8b'; // Nord Yellow
             } else {
-                console.log("Stopping edge tracking pipelines safely.");
-                isTracking = false;
-                btn.innerText = "Launch AI Tracking";
-                btn.style.background = "linear-gradient(135deg, #28a745 0%, #218838 100%)";
-                overlay.style.display = "none";
-                if(fallbackMsg) fallbackMsg.style.display = "block";
-                
-                clearInterval(trackingInterval);
+                el.style.color = '#a3be8c'; // Nord Green
             }
-        }
-
-        function executeTrackingLoopIteration() {
-            // Emulate minor box drift and vehicle approaching expansion pattern
-            let driftX = (Math.random() - 0.5) * 2;
-            let growth = 1.8; // Simulates approaching threat scale enlargement
             
-            let nextBox = [
-                simulatedBoxHistory[0] + driftX - (growth / 2), // xMin expand outward
-                simulatedBoxHistory[1] - growth,               // yMin expand upward
-                simulatedBoxHistory[2] + driftX + (growth / 2), // xMax expand outward
-                simulatedBoxHistory[3] + growth                // yMax expand downward
-            ];
-
-            // Perform calculations
-            let iou = calculateIoU(simulatedBoxHistory, nextBox);
-            let ttc = estimateTTC(simulatedBoxHistory, nextBox, 0.033);
-
-            // Print updating data metrics to HUD elements
-            document.getElementById('telemetry-iou').innerText = iou.toFixed(3);
-            document.getElementById('telemetry-ttc').innerText = isFinite(ttc) ? ttc.toFixed(2) : "Infinity";
-
-            // Rotate frames matrix window
-            simulatedBoxHistory = nextBox;
+            const now = new Date();
+            const timeStr = `[${now.toTimeString().split(' ')}.${String(now.getMilliseconds()).padStart(3, '0')}]`;
+            el.textContent = `${timeStr} ${message}`;
+            logContainer.appendChild(el);
+            logContainer.scrollTop = logContainer.scrollHeight;
         }
 
-        // --- MODULE 3 STUDENT EQUATION VALIDATION TARGETS ---
-        function calculateIoU(boxA, boxB) {
-            let xA = Math.max(boxA[0], boxB[0]);
-            let yA = Math.max(boxA[1], boxB[1]);
-            let xB = Math.min(boxA[2], boxB[2]);
-            let yB = Math.min(boxA[3], boxB[3]);
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
 
-            let interWidth = Math.max(0, xB - xA);
-            let interHeight = Math.max(0, yB - yA);
-            let interArea = interWidth * interHeight;
+        console.log = function(...args) { originalLog.apply(console, args); appendLog(args.join(' '), 'info'); };
+        console.error = function(...args) { originalError.apply(console, args); appendLog(args.join(' '), 'error'); };
+        console.warn = function(...args) { originalWarn.apply(console, args); appendLog(args.join(' '), 'warn'); };
 
-            let areaA = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1]);
-            let areaB = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1]);
+        window.addEventListener('error', (e) => appendLog(`Runtime: ${e.message} at ${e.filename}:${e.lineno}`, 'error'));
+        window.addEventListener('unhandledrejection', (e) => appendLog(`Promise Broken: ${e.reason}`, 'error'));
+        
+        console.log("Visual Pipeline Hooks Engaged.");
+    })();
 
-            let unionArea = areaA + areaB - interArea;
-            if (unionArea <= 0) return 0;
+    // Resize canvas safely to match CSS layout constraints
+    function resizeCanvas() {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // --- KINEMATIC MATH MATRIX CALCULATIONS ---
+    function calculateIoU(boxA, boxB) {
+        // Elements configuration: box = [xMin, yMin, xMax, yMax]
+        let xA = Math.max(boxA[0], boxB[0]);
+        let yA = Math.max(boxA[1], boxB[1]);
+        let xB = Math.min(boxA[2], boxB[2]);
+        let yB = Math.min(boxA[3], boxB[3]);
+
+        // Compute width & height parameters of interception zone
+        let interWidth = Math.max(0, xB - xA);
+        let interHeight = Math.max(0, yB - yA);
+        let interArea = interWidth * interHeight;
+
+        // Calculate individual total block footprint areas
+        let areaA = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1]);
+        let areaB = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1]);
+
+        // Complete calculation mapping: Area / (Area A + Area B - Shared Overlap)
+        if ((areaA + areaB - interArea) === 0) return 0;
+        return interArea / (areaA + areaB - interArea);
+    }
+
+    function estimateTTC(prevBox, currBox, deltaTime = 0.033) {
+        if (!prevBox || !currBox) return Infinity;
+        
+        let prevHeight = prevBox[3] - prevBox[1];
+        let currHeight = currBox[3] - currBox[1];
+
+        // If the bounding scale matches or reduces, the target threat is not closing in
+        if (currHeight <= prevHeight) return Infinity;
+
+        // Calculate time vector based on optical bounding dimension expansion scale
+        let ttc = (prevHeight * deltaTime) / (currHeight - prevHeight);
+        return ttc;
+    }
+
+    // --- LIVE TRACKER SIMULATION AND EXECUTOR ---
+    function runTrackingLoop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw a simulated open roadway environment grid line
+        ctx.strokeStyle = '#2e3440';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 3, canvas.height);
+        ctx.lineTo(canvas.width / 2 - 20, canvas.height / 3);
+        ctx.moveTo(canvas.width * 2 / 3, canvas.height);
+        ctx.lineTo(canvas.width / 2 + 20, canvas.height / 3);
+        ctx.stroke();
+
+        // Advance simulation mechanics coordinates of the tracking target vehicle
+        mockVehicleY += 2.5; 
+        mockVehicleWidth += 1.1;
+        mockVehicleHeight += 0.8;
+
+        // Reset vehicle track sequence when out of viewport boundaries
+        if (mockVehicleY > canvas.height) {
+            mockVehicleY = canvas.height / 4;
+            mockVehicleWidth = 30;
+            mockVehicleHeight = 20;
+            previousBox = null;
+        }
+
+        let vehicleX = (canvas.width / 2) - (mockVehicleWidth / 2);
+        let currentBox = [vehicleX, mockVehicleY, vehicleX + mockVehicleWidth, mockVehicleY + mockVehicleHeight];
+
+        // Execute kinematic logic frames pipeline matching math
+        let currentIoU = 0;
+        if (previousBox) {
+            currentIoU = calculateIoU(previousBox, currentBox);
+        }
+        let currentTTC = estimateTTC(previousBox, currentBox, 0.033);
+
+        // Store active matrix index step frame data
+        previousBox = currentBox;
+
+        // Render Threat bounding box indicators safely on viewscreen
+        ctx.strokeStyle = currentTTC < 2.0 ? '#bf616a' : '#ebcb8b';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(vehicleX, mockVehicleY, mockVehicleWidth, mockVehicleHeight);
+        
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(`THREAT VEHICLE [IoU: ${currentIoU.toFixed(2)}]`, vehicleX, mockVehicleY - 6);
+
+        // Map live data conversions back directly onto UI overlay readouts
+        document.getElementById('hud-target').textContent = "SUV (Approaching)";
+        document.getElementById('hud-iou').textContent = currentIoU.toFixed(2);
+        document.getElementById('hud-ttc').textContent = currentTTC === Infinity ? "Infinity" : `${currentTTC.toFixed(2)}s`;
+        
+        let alertBadge = document.getElementById('hud-alert');
+        if (currentTTC < 1.5) {
+            alertBadge.textContent = "CRITICAL THREAT";
+            alertBadge.style.color = '#bf616a';
+            // Perform system haptic warning buzz safely if available on browser profile
+            if (navigator.vibrate) navigator.vibrate();
+        } else if (currentTTC < 4.0) {
+            alertBadge.textContent = "WARNING: CLOSING";
+            alertBadge.style.color = '#ebcb8b';
+            if (navigator.vibrate) navigator.vibrate(80);
+        } else {
+            alertBadge.textContent = "CLEAR / TRACKING";
+            alertBadge.style.color = '#a3be8c';
+        }
+
+        // Loop next standard animation interval ticks
+        pipelineLoopId = requestAnimationFrame(runTrackingLoop);
+    }
+
+    function toggleTracking() {
+        const btn = document.getElementById('tracking-btn');
+        if (!isTracking) {
+            isTracking = true;
+            btn.textContent = "Stop Diagnostics";
+            btn.style.background = "#bf616a";
             
-            return interArea / unionArea;
+            console.log("Initializing LiteRT execution pipeline context via browser sandbox...");
+            
+            // Trigger the explicit emulation trace loop for the hardware optimization block error
+            setTimeout(() => {
+                console.error("AI ENGINE ERROR: GLES/WebGPU hardware acceleration block detected on Snapdragon/Mali core. Falling back to pure multi-threaded WebAssembly execution pipelines.");
+                document.getElementById('status-badge').textContent = "FALLBACK ENABLED";
+                document.getElementById('status-badge').style.background = "#ebcb8b";
+            }, 1200);
+
+            // Fire up active visual tracking loop pipelines
+            runTrackingLoop();
+        } else {
+            isTracking = false;
+            btn.textContent = "Launch AI Tracking";
+            btn.style.background = "#5e81ac";
+            cancelAnimationFrame(pipelineLoopId);
+            console.log("Tracking engine paused. Systems hot-idling.");
         }
+    }
+</script>
 
-        function estimateTTC(previousBox, currentBox, deltaTime = 0.033) {
-            let prevHeight = previousBox[3] - previousBox[1];
-            let currHeight = currentBox[3] - currentBox[1];
-
-            if (currHeight <= prevHeight) return Infinity; 
-
-            // Kinematic scale-factor change math calculation modeling tracking approaching velocity
-            return (prevHeight * deltaTime) / (currHeight - prevHeight);
-        }
-    </script>
 </body>
 </html>
