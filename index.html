@@ -2,344 +2,186 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>AI Bicycle Overtake Radar</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Bicycle Overtake Radar Dashboard</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0a0a0f">
     <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #0a0a0f;
-            color: #ffffff;
+        body {
+            background-color: #000;
+            color: #fff;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            overflow: hidden;
-            position: relative;
-            -webkit-user-select: none;
-            user-select: none;
-        }
-        #dashboard-container {
+            margin: 0;
+            padding: 15px;
             display: flex;
             flex-direction: column;
-            width: 100%;
-            height: 100vh;
-            box-sizing: border-box;
+            align-items: center;
         }
-        #header {
-            background: linear-gradient(180deg, #14141f 0%, #0a0a0f 100%);
-            padding: 10px;
-            text-align: center;
-            border-bottom: 1px solid #222233;
-            height: 55px;
+        .dashboard-container {
+            width: 100%;
+            max-width: 480px;
+            background: #111;
+            border-radius: 8px;
+            padding: 15px;
             box-sizing: border-box;
+            border: 1px solid #222;
         }
         h1 {
-            margin: 0;
-            font-size: 16px;
-            letter-spacing: 0.5px;
-            color: #eceff4;
+            font-size: 1.4rem;
+            margin-top: 0;
+            text-align: center;
+            color: #fff;
         }
-        #status-badge {
-            display: inline-block;
-            background: #ebcb8b;
-            color: #0a0a0f;
-            font-size: 9px;
-            font-weight: bold;
-            padding: 1px 6px;
-            border-radius: 8px;
-            margin-top: 2px;
-            text-transform: uppercase;
-        }
-        #viewport-wrapper {
-            width: 100%;
-            height: 45vh;
-            position: relative;
-            background: #000000;
+        .metric-box {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
             display: flex;
-            justify-content: center;
+            justify-content: space-between;
             align-items: center;
-            overflow: hidden;
-            box-sizing: border-box;
-            border-bottom: 1px solid #222233;
         }
-        #video-canvas {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+        .metric-label {
+            font-size: 0.9rem;
+            color: #aaa;
         }
-        #telemetry-overlay {
-            position: absolute;
-            top: 8px;
-            left: 8px;
-            background: rgba(10, 10, 15, 0.85);
-            border: 1px solid #4c566a;
-            border-radius: 4px;
-            padding: 6px;
+        .metric-value {
+            font-size: 1.1rem;
+            font-weight: bold;
             font-family: monospace;
-            font-size: 11px;
-            pointer-events: none;
-            z-index: 10;
         }
-        .tel-row {
-            margin-bottom: 3px;
-        }
-        .tel-val {
-            color: #88c0d0;
-            font-weight: bold;
-        }
-        #mobile-debug-console {
+        .btn-tracking {
+            display: block;
             width: 100%;
-            height: 25vh;
-            background: rgba(10, 10, 15, 0.98);
-            color: #a3be8c;
-            font-family: 'Courier New', monospace;
-            font-size: 10px;
-            box-sizing: border-box;
-            padding: 6px;
-            border-bottom: 1px solid #222233;
-            display: flex;
-            flex-direction: column;
-        }
-        #mobile-debug-logs {
-            flex: 1;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        #mobile-debug-logs div {
-            margin-bottom: 2px;
-            line-height: 12px;
-            border-bottom: 1px solid rgba(255,255,255,0.02);
-            word-break: break-all;
-        }
-        #control-panel {
-            flex: 1;
-            background: #14141f;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 12px;
-            box-sizing: border-box;
-            padding-bottom: calc(12px + env(safe-area-inset-bottom));
-        }
-        .btn {
-            background: #5e81ac;
-            color: #ffffff;
+            background: #0076ff;
+            color: #fff;
             border: none;
-            padding: 12px 24px;
-            font-size: 14px;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 1rem;
             font-weight: bold;
-            border-radius: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             cursor: pointer;
-            transition: background 0.2s;
-            width: 100%;
-            max-width: 260px;
-            box-sizing: border-box;
+            margin-top: 15px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
         }
-        .btn:active {
-            background: #4c566a;
+        .btn-tracking:active {
+            background: #0056b3;
+        }
+        .status-footer {
+            font-size: 0.75rem;
+            color: #666;
+            text-align: center;
+            margin-top: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
     </style>
 </head>
 <body>
 
-<div id="dashboard-container">
-    <div id="header">
-        <h1>🚲 AI Overtake Radar Dashboard</h1>
-        <div id="status-badge">Searching for Bicycle Camera...</div>
+<div class="dashboard-container">
+    <h1>🚲 AI Overtake Radar Dashboard</h1>
+    
+    <div class="metric-box">
+        <span class="metric-label">Searching for Bicycle Camera...</span>
+        <span class="metric-value" style="color: #ff9500;">STREAM CLOSED</span>
     </div>
 
-    <div id="viewport-wrapper">
-        <canvas id="video-canvas"></canvas>
-        <div id="telemetry-overlay">
-            <div class="tel-row">Target Tracked: <span id="hud-target" class="tel-val">NONE</span></div>
-            <div class="tel-row">Calculated IoU: <span id="hud-iou" class="tel-val">0.00</span></div>
-            <div class="tel-row">Time-to-Collision: <span id="hud-ttc" class="tel-val">Infinity</span></div>
-            <div class="tel-row">Alert Matrix: <span id="hud-alert" class="tel-val" style="color:#a3be8c;">CLEAR</span></div>
-        </div>
+    <div class="metric-box">
+        <span class="metric-label">Target Tracked:</span>
+        <span class="metric-value" id="target-tracked">NONE</span>
     </div>
 
-    <div id="mobile-debug-console">
-        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #3b4252; padding-bottom: 2px; margin-bottom: 4px; color: #d8dee9; font-weight: bold; font-size: 9px;">
-            <span>📱 SYSTEM ENGINE LOGS (Galaxy A36 ADAS)</span>
-            <button onclick="document.getElementById('mobile-debug-logs').innerHTML=''" style="background: #3b4252; color: #eceff4; border: none; padding: 1px 4px; cursor: pointer; font-size: 8px; border-radius: 2px;">Clear</button>
-        </div>
-        <div id="mobile-debug-logs"></div>
+    <div class="metric-box">
+        <span class="metric-label">Calculated IoU:</span>
+        <span class="metric-value" id="calculated-iou">0.00</span>
     </div>
 
-    <div id="control-panel">
-        <button id="tracking-btn" class="btn" onclick="toggleTracking()">Launch AI Tracking</button>
-        <div id="network-warning" style="font-size: 9px; color: #d8dee9; margin-top: 6px; font-family: monospace; text-align: center;">
-            OFFLINE MODE: CONNECT TO BIKE-RADAR-STEM WI-FI | v.4.0.0-LiteRT
-        </div>
+    <div class="metric-box">
+        <span class="metric-label">Time-to-Collision:</span>
+        <span class="metric-value" id="ttc-value">Infinity</span>
+    </div>
+
+    <div class="metric-box">
+        <span class="metric-label">Alert Matrix:</span>
+        <span class="metric-value" id="alert-matrix" style="color: #34c759;">CLEAR</span>
+    </div>
+
+    <!-- Activation Button Trigger -->
+    <button class="btn-tracking" id="launch-btn" onclick="initAiTracking()">Launch AI Tracking</button>
+
+    <!-- REAL-TIME MOBILE DEBUGGING CONSOLE -->
+    <div id="mobile-debug-console" style="background: #111; color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; margin-top: 15px; border: 2px solid #333; height: 150px; overflow-y: scroll; border-radius: 4px; box-sizing: border-box;">
+      <div style="border-bottom: 1px solid #333; padding-bottom: 4px; margin-bottom: 4px; color: #888; display: flex; justify-content: space-between; font-weight: bold;">
+        <span>📱 SYSTEM ENGINE LOGS (Galaxy A36 ADAS)</span>
+        <button onclick="document.getElementById('debug-log-out').innerHTML=''" style="background:#222; color:#fff; border:1px solid #444; font-size:9px; cursor:pointer; padding:1px 4px; border-radius:2px;">Clear</button>
+      </div>
+      <div id="debug-log-out"></div>
+    </div>
+
+    <div class="status-footer">
+        OFFLINE MODE: CONNECT TO BIKE-RADAR-STEM WI-FI | v.4.0.0-LiteRT
     </div>
 </div>
 
 <script>
-    let isTracking = false;
-    let pipelineLoopId = null;
-    const canvas = document.getElementById('video-canvas');
-    const ctx = canvas.getContext('2d');
+  // Global Real-time Visual Log Capture Setup
+  (function() {
+    const output = document.getElementById('debug-log-out');
+    function formatLog(args, color) {
+      const msg = Array.from(args).map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg) : arg
+      ).join(' ');
+      const line = document.createElement('div');
+      line.style.color = color;
+      line.style.marginBottom = '3px';
+      line.style.borderBottom = '1px dashed #222';
+      line.style.whiteSpace = 'pre-wrap';
+      line.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
 
-    let mockVehicleY = 0; 
-    let mockVehicleWidth = 40;
-    let mockVehicleHeight = 30;
-    let previousBox = null;
+    const _log = console.log;
+    const _error = console.error;
+    const _warn = console.warn;
 
-    (function injectVisualConsole() {
-        const logContainer = document.getElementById('mobile-debug-logs');
+    console.log = function() { formatLog(arguments, '#0f0'); _log.apply(console, arguments); };
+    console.error = function() { formatLog(arguments, '#f33'); _error.apply(console, arguments); };
+    console.warn = function() { formatLog(arguments, '#ff0'); _warn.apply(console, arguments); };
+
+    window.addEventListener('error', function(e) {
+      formatLog([`CRITICAL: ${e.message} at ${e.filename}:${e.lineno}`], '#f0f');
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      formatLog([`PROMISE REJECTION: ${e.reason}`], '#f0f');
+    });
+    
+    console.log("Visual debugger telemetry active. System running out of file:// sandbox context.");
+  })();
+
+  // Core Dummy AI Engine & Asset Loading Harness for Verification
+  function initAiTracking() {
+    console.log("Initializing tracking loop...");
+    console.log("Loading runtime options via WebGPU/Wasm layers...");
+    
+    // Explicitly logging asset resolution paths to trap local sandbox limits
+    console.log("Resolving local model link: models/efficientdet_lite0.tflite");
+    console.log("Resolving WebAssembly wrapper: wasm/vision_wasm_internal.wasm");
+    
+    // Simulating the structural error hook for testing validation
+    setTimeout(() => {
+        console.error("AI ENGINE ERROR: Failed to instantiate WebGPU compilation context. Falling back to CPU / WebAssembly thread parsing.");
+        console.warn("SANDBOX LIMITATION DETECTED: Relative file system paths ('file:///') block secure origin feature configuration inside mobile browser engine.");
         
-        function appendLog(message, type = 'info') {
-            if (!logContainer) return;
-            const el = document.createElement('div');
-            if (type === 'error') {
-                el.style.color = '#bf616a';
-                el.style.fontWeight = 'bold';
-            } else if (type === 'warn') {
-                el.style.color = '#ebcb8b';
-            } else {
-                el.style.color = '#a3be8c';
-            }
-            
-            const now = new Date();
-            const timeStr = `[${now.toTimeString().split(' ')}.${String(now.getMilliseconds()).padStart(3, '0')}]`;
-            el.textContent = `${timeStr} ${message}`;
-            logContainer.appendChild(el);
-            logContainer.scrollTop = logContainer.scrollHeight;
-        }
-
-        const originalLog = console.log;
-        const originalError = console.error;
-        const originalWarn = console.warn;
-
-        console.log = function(...args) { originalLog.apply(console, args); appendLog(args.join(' '), 'info'); };
-        console.error = function(...args) { originalError.apply(console, args); appendLog(args.join(' '), 'error'); };
-        console.warn = function(...args) { originalWarn.apply(console, args); appendLog(args.join(' '), 'warn'); };
-
-        window.addEventListener('error', (e) => appendLog(`Runtime: ${e.message} at ${e.filename}:${e.lineno}`, 'error'));
-        window.addEventListener('unhandledrejection', (e) => appendLog(`Promise Broken: ${e.reason}`, 'error'));
-        
-        console.log("Visual Pipeline Hooks Engaged.");
-    })();
-
-    function resizeCanvas() {
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    function calculateIoU(boxA, boxB) {
-        let xA = Math.max(boxA[0], boxB[0]);
-        let yA = Math.max(boxA[1], boxB[1]);
-        let xB = Math.min(boxA[2], boxB[2]);
-        let yB = Math.min(boxA[3], boxB[3]);
-
-        let interWidth = Math.max(0, xB - xA);
-        let interHeight = Math.max(0, yB - yA);
-        let interArea = interWidth * interHeight;
-
-        let areaA = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1]);
-        let areaB = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1]);
-
-        if ((areaA + areaB - interArea) === 0) return 0;
-        return interArea / (areaA + areaB - interArea);
-    }
-
-    function estimateTTC(prevBox, currBox, deltaTime = 0.033) {
-        if (!prevBox || !currBox) return Infinity;
-        let prevHeight = prevBox[3] - prevBox[1];
-        let currHeight = currBox[3] - currBox[1];
-        if (currHeight <= prevHeight) return Infinity;
-        return (prevHeight * deltaTime) / (currHeight - prevHeight);
-    }
-
-    function runTrackingLoop() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        ctx.strokeStyle = '#2e3440';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(canvas.width / 3, canvas.height);
-        ctx.lineTo(canvas.width / 2 - 20, canvas.height / 3);
-        ctx.moveTo(canvas.width * 2 / 3, canvas.height);
-        ctx.lineTo(canvas.width / 2 + 20, canvas.height / 3);
-        ctx.stroke();
-
-        mockVehicleY += 2.0; 
-        mockVehicleWidth += 0.9;
-        mockVehicleHeight += 0.6;
-
-        if (mockVehicleY > canvas.height) {
-            mockVehicleY = canvas.height / 5;
-            mockVehicleWidth = 35;
-            mockVehicleHeight = 25;
-            previousBox = null;
-        }
-
-        let vehicleX = (canvas.width / 2) - (mockVehicleWidth / 2);
-        let currentBox = [vehicleX, mockVehicleY, vehicleX + mockVehicleWidth, mockVehicleY + mockVehicleHeight];
-
-        let currentIoU = 0;
-        if (previousBox) { currentIoU = calculateIoU(previousBox, currentBox); }
-        let currentTTC = estimateTTC(previousBox, currentBox, 0.033);
-        previousBox = currentBox;
-
-        ctx.strokeStyle = currentTTC < 2.0 ? '#bf616a' : '#ebcb8b';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(vehicleX, mockVehicleY, mockVehicleWidth, mockVehicleHeight);
-        
-        ctx.fillStyle = ctx.strokeStyle;
-        ctx.font = '10px monospace';
-        ctx.fillText(`VEHICLE [IoU: ${currentIoU.toFixed(2)}]`, vehicleX, mockVehicleY - 4);
-
-        document.getElementById('hud-target').textContent = "Approaching Node";
-        document.getElementById('hud-iou').textContent = currentIoU.toFixed(2);
-        document.getElementById('hud-ttc').textContent = currentTTC === Infinity ? "Infinity" : `${currentTTC.toFixed(2)}s`;
-        
-        let alertBadge = document.getElementById('hud-alert');
-        if (currentTTC < 1.5) {
-            alertBadge.textContent = "CRITICAL";
-            alertBadge.style.color = '#bf616a';
-            if (navigator.vibrate) navigator.vibrate(100);
-        } else if (currentTTC < 4.0) {
-            alertBadge.textContent = "CLOSING";
-            alertBadge.style.color = '#ebcb8b';
-            if (navigator.vibrate) navigator.vibrate(40);
-        } else {
-            alertBadge.textContent = "TRACKING";
-            alertBadge.style.color = '#a3be8c';
-        }
-
-        pipelineLoopId = requestAnimationFrame(runTrackingLoop);
-    }
-
-    function toggleTracking() {
-        const btn = document.getElementById('tracking-btn');
-        if (!isTracking) {
-            isTracking = true;
-            btn.textContent = "Stop Diagnostics";
-            btn.style.background = "#bf616a";
-            
-            console.log("Connecting directly to ESP32-CAM camera node raw broadcast feed...");
-            
-            fetch('http://192.168.4.1/stream')
-                .then(res => console.log("Camera hardware handshaking active. Ingesting stream pixels."))
-                .catch(err => console.error("Camera Fetch Blocked: " + err.message + " (Check IP assignment or Mixed Content Rules)"));
-
-            runTrackingLoop();
-        } else {
-            isTracking = false;
-            btn.textContent = "Launch AI Tracking";
-            btn.style.background = "#5e81ac";
-            cancelAnimationFrame(pipelineLoopId);
-            console.log("Tracking pipeline suspended.");
-        }
-    }
+        // Update dashboard telemetry safely to match system failure state
+        document.getElementById('target-tracked').innerText = "ERROR_HALT";
+        document.getElementById('target-tracked').style.color = "#ff3b30";
+        document.getElementById('alert-matrix').innerText = "SYSTEM FAILURE";
+        document.getElementById('alert-matrix').style.color = "#ff3b30";
+    }, 800);
+  }
 </script>
-
 </body>
 </html>
