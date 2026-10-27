@@ -1,12 +1,12 @@
 /* 
   PROJECT: AI Bicycle Overtake Radar (STEM Safety)
   FILE: sw.js (PWA Offline Service Worker Caching Loop)
-  VERSION: 4.0.0-LiteRT
-  DATE: 2026-10-22
-  CHANGELOG: Locks local repository folders into smartphone hardware memory to bypass all mobile cross-domain blocking firewalls natively.
+  VERSION: 4.1.0-Debugger
+  DATE: 2026-10-27
+  CHANGELOG: Incremented cache name to force-evict old assets and register on-screen console layer.
 */
 
-const CACHE_NAME = 'bike-radar-v4.0.1-fixed';
+const CACHE_NAME = 'bike-radar-v4.1.0-debugger';
 const ASSETS = [
   './',
   './index.html',
