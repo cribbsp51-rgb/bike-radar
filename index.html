@@ -68,8 +68,14 @@
       margin-top: 15px;
     }
   </style>
-  <!-- Load local verified core bundle -->
-  <script src="./js/vision_bundle.js"></script>
+  <!-- Load local verified core bundle explicitly as an ES Module -->
+  <script type="module">
+    import { FilesetResolver, ObjectDetector } from "./js/vision_bundle.js";
+
+    // Bind them to the global window object so our existing app logic can see them
+    window.FilesetResolver = FilesetResolver;
+    window.ObjectDetector = ObjectDetector;
+  </script>
 </head>
 <body>
 
