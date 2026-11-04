@@ -146,7 +146,22 @@
 
     console.log("Visual telemetry active. Clean asset mode running.");
 
-    // Unified Initialization Engine using absolute WASM path resolution
+    // Helper to dynamically build clean paths matching GitHub Pages subfolders
+    function getAbsoluteBasePath() {
+      const path = window.location.pathname;
+      if (path.includes('/bike-radar')) {
+        return `${window.location.origin}/bike-radar`;
+      }
+      // Fallback for custom domains or root-level local servers
+      if (path.endsWith('/') || path.endsWith('index.html')) {
+        const segments = path.split('/');
+        segments.pop(); // Remove index.html or empty last item
+        return window.location.origin + segments.join('/');
+      }
+      return window.location.origin;
+    }
+
+    // Unified Initialization Engine using absolute WASM and Model path resolution
     async function initializeDetector() {
       if (isTrackingActive) return;
       
@@ -154,15 +169,19 @@
         console.log("Initializing tracking loop...");
         console.log("Forcing runtime optimization constraints: delegate: CPU");
         
-        const localWasmPath = `${window.location.origin}/wasm`;
-        console.log("System Engine: Booting local assets from " + localWasmPath);
+        const baseHref = getAbsoluteBasePath();
+        const localWasmPath = `${baseHref}/wasm`;
+        const localModelPath = `${baseHref}/models/efficientdet_lite0.tflite`;
+        
+        console.log("System Engine: Booting local WASM from " + localWasmPath);
+        console.log("System Engine: Loading model asset from " + localModelPath);
         
         const vision = await FilesetResolver.forVisionTasks(localWasmPath);
         console.log("System Engine: FilesetResolver successfully bound.");
         
         objectDetector = await ObjectDetector.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: "./models/efficientdet_lite0.tflite",
+            modelAssetPath: localModelPath,
             delegate: "CPU"
           },
           scoreThreshold: 0.3,
@@ -215,12 +234,24 @@
         
         // Look through detected items for threatening vehicles (car, truck, bus, motorcycle)
         const targetLabels = ['car', 'truck', 'bus', 'motorcycle'];
-        const validThreats = results.detections.filter(d => 
-          d.categories.some(c => targetLabels.includes(c.categoryName))
-        );
+        const validThreats = [];
+        
+        if (results && results.detections) {
+          for (let i = 0; i < results.detections.length; i++) {
+            const detection = results.detections[i];
+            if (detection.categories) {
+              for (let j = 0; j < detection.categories.length; j++) {
+                if (targetLabels.includes(detection.categories[j].categoryName)) {
+                  validThreats.push(detection);
+                  break;
+                }
+              }
+            }
+          }
+        }
 
         if (validThreats.length > 0) {
-          // Sort to track the highest score or most immediate threat
+          // Track the primary immediate threat
           const threat = validThreats[0];
           const bestCategory = threat.categories[0];
           const box = threat.boundingBox;
