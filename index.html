@@ -146,42 +146,35 @@
 
     console.log("Visual telemetry active. Clean asset mode running.");
 
-    // Helper to dynamically build clean paths matching GitHub Pages subfolders
+    // Helper to get correct base path matching local vs GitHub Pages deployment folder
     function getAbsoluteBasePath() {
       const path = window.location.pathname;
       if (path.includes('/bike-radar')) {
         return `${window.location.origin}/bike-radar`;
       }
-      // Fallback for custom domains or root-level local servers
-      if (path.endsWith('/') || path.endsWith('index.html')) {
-        const segments = path.split('/');
-        segments.pop(); // Remove index.html or empty last item
-        return window.location.origin + segments.join('/');
-      }
-      return window.location.origin;
+      // If trailing slash exists on root, trim it to avoid duplicate slashes
+      return window.location.origin + (path.endsWith('/') ? path.slice(0, -1) : path);
     }
 
-    // Unified Initialization Engine using absolute WASM and Model path resolution
+    // Unified Initialization Engine using absolute path resolution
     async function initializeDetector() {
-      if (isTrackingActive) return;
-      
       try {
         console.log("Initializing tracking loop...");
         console.log("Forcing runtime optimization constraints: delegate: CPU");
         
         const baseHref = getAbsoluteBasePath();
         const localWasmPath = `${baseHref}/wasm`;
-        const localModelPath = `${baseHref}/models/efficientdet_lite0.tflite`;
+        const modelAssetPath = `${baseHref}/models/efficientdet_lite0.tflite`;
         
-        console.log("System Engine: Booting local WASM from " + localWasmPath);
-        console.log("System Engine: Loading model asset from " + localModelPath);
+        console.log("System Engine: Booting local assets from " + localWasmPath);
+        console.log("System Engine: Target model path " + modelAssetPath);
         
         const vision = await FilesetResolver.forVisionTasks(localWasmPath);
         console.log("System Engine: FilesetResolver successfully bound.");
         
         objectDetector = await ObjectDetector.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: localModelPath,
+            modelAssetPath: modelAssetPath,
             delegate: "CPU"
           },
           scoreThreshold: 0.3,
@@ -194,7 +187,7 @@
         setupCameraStream();
         
       } catch (err) {
-        console.error("Initialization Failed: " + (err?.message || JSON.stringify(err) || "Unknown Asset Load Failure"));
+        console.error("Initialization Failed:", err?.message || JSON.stringify(err) || err);
       }
     }
 
@@ -234,24 +227,12 @@
         
         // Look through detected items for threatening vehicles (car, truck, bus, motorcycle)
         const targetLabels = ['car', 'truck', 'bus', 'motorcycle'];
-        const validThreats = [];
-        
-        if (results && results.detections) {
-          for (let i = 0; i < results.detections.length; i++) {
-            const detection = results.detections[i];
-            if (detection.categories) {
-              for (let j = 0; j < detection.categories.length; j++) {
-                if (targetLabels.includes(detection.categories[j].categoryName)) {
-                  validThreats.push(detection);
-                  break;
-                }
-              }
-            }
-          }
-        }
+        const validThreats = results.detections.filter(d => 
+          d.categories.some(c => targetLabels.includes(c.categoryName))
+        );
 
         if (validThreats.length > 0) {
-          // Track the primary immediate threat
+          // FIXED: Grab the first detection element from the filtered threat array
           const threat = validThreats[0];
           const bestCategory = threat.categories[0];
           const box = threat.boundingBox;
@@ -324,7 +305,8 @@
         display.innerText = "🚨 CRITICAL OVERTAKE THREAT 🚨";
         display.style.color = "#fff";
         display.style.backgroundColor = "#ff0000";
-        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        // Phone tactile pulse alert integration if supported
+        if (navigator.vibrate) navigator.vibrate(200);
       } else if (ttc <= 5.0) {
         display.innerText = "⚠️ VEHICLE APPROACHING ⚠️";
         display.style.color = "#000";
