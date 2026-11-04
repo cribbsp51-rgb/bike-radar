@@ -68,38 +68,6 @@
       margin-top: 15px;
     }
   </style>
-  <!-- Load local verified core bundle explicitly as an ES Module -->
-  <script type="module">
-    import { FilesetResolver, ObjectDetector } from "./js/vision_bundle.js";
-
-    // Bind them to the global window object so our existing app logic can see them
-    window.FilesetResolver = FilesetResolver;
-    window.ObjectDetector = ObjectDetector;
-    // Wrap the initialization in a robust path resolver
-    // Make sure this matches your application initialization entry point 
-    async function initRadarAI() {
-    try {
-       // 1. Force the absolute path to your local PWA root WASM folder
-      const localWasmPath = `${window.location.origin}/wasm`;
-      console.log("System Engine: Booting local assets from " + localWasmPath);
-      
-      const vision = await FilesetResolver.forVisionTasks(localWasmPath);
-      console.log("System Engine: FilesetResolver successfully bound.", vision);
-      
-      // Proceed with ObjectDetector initialization...
-      
-    } catch (error) {
-      console.error("Initialization failed:", error);
-      // Safeguard against 'undefined' error messages by showing the whole error object
-      const errorDetails = error?.message || JSON.stringify(error) || "Unknown Asset Load Failure";
-      const logBox = document.getElementById("log-box-id");
-      if (logBox) {
-        logBox.innerText += `\n[${new Date().toLocaleTimeString()}] Initialization Failed: ${errorDetails}`;
-    }
-  }
-  // Auto-boot or tie this to your DOMContentLoaded listener as needed
-  window.initRadarAI = initRadarAI;
-  </script>
 </head>
 <body>
 
@@ -145,7 +113,10 @@
     </div>
   </div>
 
-  <script>
+  <!-- SINGLE MASTER APPLICATION MODULE -->
+  <script type="module">
+    import { FilesetResolver, ObjectDetector } from "./js/vision_bundle.js";
+
     let objectDetector;
     const output = document.getElementById('debug-log-out');
 
@@ -169,14 +140,18 @@
 
     console.log("Visual telemetry active. Clean asset mode running.");
 
-    // Initializing MediaPipe Object Detector using the Engineer's exact parameters
+    // Unified Initialization Engine using absolute WASM path resolution
     async function initializeDetector() {
       try {
         console.log("Initializing tracking loop...");
         console.log("Forcing runtime optimization constraints: delegate: CPU");
         
-        // Pointing explicitly to our local, uncorrupted WebAssembly binary directory
-        const vision = await FilesetResolver.forVisionTasks("./wasm");
+        // 1. Force the absolute path to your local PWA root WASM folder
+        const localWasmPath = `${window.location.origin}/wasm`;
+        console.log("System Engine: Booting local assets from " + localWasmPath);
+        
+        const vision = await FilesetResolver.forVisionTasks(localWasmPath);
+        console.log("System Engine: FilesetResolver successfully bound.");
         
         objectDetector = await ObjectDetector.createFromOptions(vision, {
           baseOptions: {
@@ -190,13 +165,15 @@
         console.log("SUCCESS: LiteRT CPU Engine instantiated cleanly!");
         document.getElementById('stream-status').innerText = "Bicycle Camera Interface: ACTIVE";
       } catch (err) {
-        console.error("Initialization Failed: " + err.message);
+        console.error("Initialization Failed: " + (err?.message || JSON.stringify(err) || "Unknown Asset Load Failure"));
       }
     }
 
+    // Attach click event to launch button
     document.getElementById('btn-launch').addEventListener('click', () => {
       initializeDetector();
     });
   </script>
 </body>
 </html>
+
