@@ -48,6 +48,7 @@
       border-radius: 4px;
       margin: 15px 0;
       border: 1px solid #333;
+      transition: background 0.2s ease;
     }
     .btn-track {
       width: 100%;
@@ -118,6 +119,11 @@
     import { FilesetResolver, ObjectDetector } from "./js/vision_bundle.js";
 
     let objectDetector;
+    let streamElement = null;
+    let isTrackingActive = false;
+    let lastBoundingBox = null;
+    let lastTimestamp = 0;
+
     const output = document.getElementById('debug-log-out');
 
     // Inline logging setup
@@ -142,11 +148,12 @@
 
     // Unified Initialization Engine using absolute WASM path resolution
     async function initializeDetector() {
+      if (isTrackingActive) return;
+      
       try {
         console.log("Initializing tracking loop...");
         console.log("Forcing runtime optimization constraints: delegate: CPU");
         
-        // 1. Force the absolute path to your local PWA root WASM folder
         const localWasmPath = `${window.location.origin}/wasm`;
         console.log("System Engine: Booting local assets from " + localWasmPath);
         
@@ -156,17 +163,165 @@
         objectDetector = await ObjectDetector.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: "./models/efficientdet_lite0.tflite",
-            delegate: "CPU" // Hardcoded CPU preference to stop WebGPU crashes entirely
+            delegate: "CPU"
           },
           scoreThreshold: 0.3,
           runningMode: "IMAGE"
         });
 
         console.log("SUCCESS: LiteRT CPU Engine instantiated cleanly!");
-        document.getElementById('stream-status').innerText = "Bicycle Camera Interface: ACTIVE";
+        
+        // Setup the ESP32 Camera Stream Receiver Link
+        setupCameraStream();
+        
       } catch (err) {
         console.error("Initialization Failed: " + (err?.message || JSON.stringify(err) || "Unknown Asset Load Failure"));
       }
+    }
+
+    // Connects background DOM element to the default ESP32-CAM MJPEG server address
+    function setupCameraStream() {
+      console.log("Connecting to ESP32-CAM MJPEG stream at 192.168.4.1...");
+      
+      streamElement = new Image();
+      streamElement.crossOrigin = "anonymous";
+      
+      // Hook up stream life cycle monitoring events
+      streamElement.onload = () => {
+        if (!isTrackingActive) {
+          console.log("Stream sync verified. Starting processing frame loop.");
+          document.getElementById('stream-status').innerText = "Bicycle Camera Interface: ACTIVE";
+          isTrackingActive = true;
+          requestAnimationFrame(processFrameLoop);
+        }
+      };
+
+      streamElement.onerror = () => {
+        console.error("Stream error: Failed to pull data from http://192.168.4.1:81/stream");
+        document.getElementById('stream-status').innerText = "STREAM CORRUPTED / TARGET OFFLINE";
+      };
+
+      // Direct injection of default raw MJPEG port path assignment
+      streamElement.src = "http://192.168.4.1:81/stream";
+    }
+
+    // High performance frame parsing loop 
+    async function processFrameLoop(timestamp) {
+      if (!isTrackingActive) return;
+
+      try {
+        // Execute fast sync vision slice inference
+        const results = await objectDetector.detect(streamElement);
+        
+        // Look through detected items for threatening vehicles (car, truck, bus, motorcycle)
+        const targetLabels = ['car', 'truck', 'bus', 'motorcycle'];
+        const validThreats = results.detections.filter(d => 
+          d.categories.some(c => targetLabels.includes(c.categoryName))
+        );
+
+        if (validThreats.length > 0) {
+          // Sort to track the highest score or most immediate threat
+          const threat = validThreats[0];
+          const bestCategory = threat.categories[0];
+          const box = threat.boundingBox;
+
+          // Update UI target indicators
+          document.getElementById("val-target").innerText = `${bestCategory.categoryName.toUpperCase()} (${Math.round(bestCategory.score * 100)}%)`;
+
+          if (lastBoundingBox && lastTimestamp > 0) {
+            const timeDelta = (timestamp - lastTimestamp) / 1000; // in seconds
+            
+            // 1. Calculate Intersection-over-Union (IoU) to evaluate structural changes
+            const iou = calculateIoU(lastBoundingBox, box);
+            document.getElementById("val-iou").innerText = iou.toFixed(2);
+
+            // 2. Compute closing speed using scale factor differences as a relative baseline
+            const currentSize = box.width * box.height;
+            const lastSize = lastBoundingBox.width * lastBoundingBox.height;
+            
+            // Overlapping changes calculate structural scale adjustments
+            if (currentSize > lastSize && timeDelta > 0) {
+              const rateOfGrowth = (currentSize - lastSize) / lastSize / timeDelta;
+              
+              // 3. Extrapolate relative Time-to-Collision (TTC)
+              const ttc = 1 / rateOfGrowth;
+              document.getElementById("val-ttc").innerText = ttc < 0 ? "Infinity" : `${ttc.toFixed(1)}s`;
+
+              // 4. Update the Alert Matrix system state
+              updateAlertMatrix(ttc);
+            } else {
+              resetThreatMetricsOnly();
+            }
+          }
+
+          lastBoundingBox = box;
+          lastTimestamp = timestamp;
+        } else {
+          // Clear tracking parameters gracefully when view is unobstructed
+          resetTrackingMetrics();
+        }
+
+      } catch (err) {
+        console.warn("Frame parse warning:", err.message);
+      }
+
+      // Re-trigger loop on browser frame refresh
+      requestAnimationFrame(processFrameLoop);
+    }
+
+    // Standard bounding box spatial mapping Intersection over Union math engine
+    function calculateIoU(boxA, boxB) {
+      const xA = Math.max(boxA.originX, boxB.originX);
+      const yA = Math.max(boxA.originY, boxB.originY);
+      const xB = Math.min(boxA.originX + boxA.width, boxB.originX + boxB.width);
+      const yB = Math.min(boxA.originY + boxA.height, boxB.originY + boxB.height);
+
+      const interWidth = Math.max(0, xB - xA);
+      const interHeight = Math.max(0, yB - yA);
+      const interArea = interWidth * interHeight;
+
+      if (interArea === 0) return 0;
+
+      const areaA = boxA.width * boxA.height;
+      const areaB = boxB.width * boxB.height;
+      return interArea / (areaA + areaB - interArea);
+    }
+
+    function updateAlertMatrix(ttc) {
+      const display = document.getElementById("alert-display");
+      if (ttc <= 2.5) {
+        display.innerText = "🚨 CRITICAL OVERTAKE THREAT 🚨";
+        display.style.color = "#fff";
+        display.style.backgroundColor = "#ff0000";
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      } else if (ttc <= 5.0) {
+        display.innerText = "⚠️ VEHICLE APPROACHING ⚠️";
+        display.style.color = "#000";
+        display.style.backgroundColor = "#ffcc00";
+      } else {
+        display.innerText = "Alert Matrix: CLEAR";
+        display.style.color = "#0f0";
+        display.style.backgroundColor = "#111";
+      }
+    }
+
+    function resetThreatMetricsOnly() {
+      document.getElementById("val-iou").innerText = "0.00";
+      document.getElementById("val-ttc").innerText = "Infinity";
+    }
+
+    function resetTrackingMetrics() {
+      document.getElementById("val-target").innerText = "NONE";
+      document.getElementById("val-iou").innerText = "0.00";
+      document.getElementById("val-ttc").innerText = "Infinity";
+      
+      const display = document.getElementById("alert-display");
+      display.innerText = "Alert Matrix: CLEAR";
+      display.style.color = "#0f0";
+      display.style.backgroundColor = "#111";
+      
+      lastBoundingBox = null;
+      lastTimestamp = 0;
     }
 
     // Attach click event to launch button
@@ -176,4 +331,3 @@
   </script>
 </body>
 </html>
-
