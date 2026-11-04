@@ -76,12 +76,15 @@
     window.FilesetResolver = FilesetResolver;
     window.ObjectDetector = ObjectDetector;
     // Wrap the initialization in a robust path resolver
+    // Make sure this matches your application initialization entry point 
     async function initRadarAI() {
     try {
+       // 1. Force the absolute path to your local PWA root WASM folder
       const localWasmPath = `${window.location.origin}/wasm`;
       console.log("System Engine: Booting local assets from " + localWasmPath);
       
       const vision = await FilesetResolver.forVisionTasks(localWasmPath);
+      console.log("System Engine: FilesetResolver successfully bound.", vision);
       
       // Proceed with ObjectDetector initialization...
       
@@ -89,9 +92,13 @@
       console.error("Initialization failed:", error);
       // Safeguard against 'undefined' error messages by showing the whole error object
       const errorDetails = error?.message || JSON.stringify(error) || "Unknown Asset Load Failure";
-      document.getElementById("log-box-id").innerText += `\n[${new Date().toLocaleTimeString()}] Initialization Failed: ${errorDetails}`;
+      const logBox = document.getElementById("log-box-id");
+      if (logBox) {
+        logBox.innerText += `\n[${new Date().toLocaleTimeString()}] Initialization Failed: ${errorDetails}`;
     }
   }
+  // Auto-boot or tie this to your DOMContentLoaded listener as needed
+  window.initRadarAI = initRadarAI;
   </script>
 </head>
 <body>
