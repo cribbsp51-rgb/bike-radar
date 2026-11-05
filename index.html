@@ -126,7 +126,6 @@
 
     const output = document.getElementById('debug-log-out');
 
-    // Inline logging setup
     function formatLog(args, color) {
       const msg = Array.from(args).map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
       const line = document.createElement('div');
@@ -146,35 +145,34 @@
 
     console.log("Visual telemetry active. Clean asset mode running.");
 
-    // Helper to get correct base path matching local vs GitHub Pages deployment folder
     function getAbsoluteBasePath() {
       const path = window.location.pathname;
       if (path.includes('/bike-radar')) {
-        return `${window.location.origin}/bike-radar`;
+        return window.location.origin + path.substring(0, path.indexOf('/bike-radar') + 11);
       }
-      // If trailing slash exists on root, trim it to avoid duplicate slashes
-      return window.location.origin + (path.endsWith('/') ? path.slice(0, -1) : path);
+      if (path.endsWith('.html')) {
+        return window.location.origin + path.substring(0, path.lastIndexOf('/') + 1);
+      }
+      return window.location.origin + path;
     }
 
-    // Unified Initialization Engine using absolute path resolution
     async function initializeDetector() {
+      if (isTrackingActive) return;
+      
       try {
         console.log("Initializing tracking loop...");
         console.log("Forcing runtime optimization constraints: delegate: CPU");
         
-        const baseHref = getAbsoluteBasePath();
-        const localWasmPath = `${baseHref}/wasm`;
-        const modelAssetPath = `${baseHref}/models/efficientdet_lite0.tflite`;
-        
+        const baseFolder = getAbsoluteBasePath();
+        const localWasmPath = baseFolder + "/wasm";
         console.log("System Engine: Booting local assets from " + localWasmPath);
-        console.log("System Engine: Target model path " + modelAssetPath);
         
         const vision = await FilesetResolver.forVisionTasks(localWasmPath);
         console.log("System Engine: FilesetResolver successfully bound.");
         
         objectDetector = await ObjectDetector.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: modelAssetPath,
+            modelAssetPath: baseFolder + "/models/efficientdet_lite0.tflite",
             delegate: "CPU"
           },
           scoreThreshold: 0.3,
@@ -182,23 +180,19 @@
         });
 
         console.log("SUCCESS: LiteRT CPU Engine instantiated cleanly!");
-        
-        // Setup the ESP32 Camera Stream Receiver Link
         setupCameraStream();
         
       } catch (err) {
-        console.error("Initialization Failed:", err?.message || JSON.stringify(err) || err);
+        console.error("Initialization Failed: " + (err?.message || JSON.stringify(err) || "Unknown Asset Load Failure"));
       }
     }
 
-    // Connects background DOM element to the default ESP32-CAM MJPEG server address
     function setupCameraStream() {
       console.log("Connecting to ESP32-CAM MJPEG stream at 192.168.4.1...");
       
       streamElement = new Image();
       streamElement.crossOrigin = "anonymous";
       
-      // Hook up stream life cycle monitoring events
       streamElement.onload = () => {
         if (!isTrackingActive) {
           console.log("Stream sync verified. Starting processing frame loop.");
@@ -213,54 +207,42 @@
         document.getElementById('stream-status').innerText = "STREAM CORRUPTED / TARGET OFFLINE";
       };
 
-      // Direct injection of default raw MJPEG port path assignment
       streamElement.src = "http://192.168.4.1:81/stream";
     }
 
-    // High performance frame parsing loop 
     async function processFrameLoop(timestamp) {
       if (!isTrackingActive) return;
 
       try {
-        // Execute fast sync vision slice inference
         const results = await objectDetector.detect(streamElement);
         
-        // Look through detected items for threatening vehicles (car, truck, bus, motorcycle)
         const targetLabels = ['car', 'truck', 'bus', 'motorcycle'];
         const validThreats = results.detections.filter(d => 
           d.categories.some(c => targetLabels.includes(c.categoryName))
         );
 
         if (validThreats.length > 0) {
-          // FIXED: Grab the first detection element from the filtered threat array
           const threat = validThreats[0];
           const bestCategory = threat.categories[0];
           const box = threat.boundingBox;
 
-          // Update UI target indicators
           document.getElementById("val-target").innerText = `${bestCategory.categoryName.toUpperCase()} (${Math.round(bestCategory.score * 100)}%)`;
 
           if (lastBoundingBox && lastTimestamp > 0) {
-            const timeDelta = (timestamp - lastTimestamp) / 1000; // in seconds
+            const deltaTime = (timestamp - lastTimestamp) / 1000;
             
-            // 1. Calculate Intersection-over-Union (IoU) to evaluate structural changes
             const iou = calculateIoU(lastBoundingBox, box);
             document.getElementById("val-iou").innerText = iou.toFixed(2);
 
-            // 2. Compute closing speed using scale factor differences as a relative baseline
-            const currentSize = box.width * box.height;
-            const lastSize = lastBoundingBox.width * lastBoundingBox.height;
+            const currentArea = box.width * box.height;
+            const previousArea = lastBoundingBox.width * lastBoundingBox.height;
             
-            // Overlapping changes calculate structural scale adjustments
-            if (currentSize > lastSize && timeDelta > 0) {
-              const rateOfGrowth = (currentSize - lastSize) / lastSize / timeDelta;
+            if (currentArea > previousArea && deltaTime > 0) {
+              let expansionRate = (currentArea - previousArea) / deltaTime;
+              let timeToCollision = (2 * currentArea) / expansionRate;
               
-              // 3. Extrapolate relative Time-to-Collision (TTC)
-              const ttc = 1 / rateOfGrowth;
-              document.getElementById("val-ttc").innerText = ttc < 0 ? "Infinity" : `${ttc.toFixed(1)}s`;
-
-              // 4. Update the Alert Matrix system state
-              updateAlertMatrix(ttc);
+              document.getElementById("val-ttc").innerText = `${timeToCollision.toFixed(1)}s`;
+              updateAlertMatrix(timeToCollision);
             } else {
               resetThreatMetricsOnly();
             }
@@ -269,7 +251,6 @@
           lastBoundingBox = box;
           lastTimestamp = timestamp;
         } else {
-          // Clear tracking parameters gracefully when view is unobstructed
           resetTrackingMetrics();
         }
 
@@ -277,11 +258,9 @@
         console.warn("Frame parse warning:", err.message);
       }
 
-      // Re-trigger loop on browser frame refresh
       requestAnimationFrame(processFrameLoop);
     }
 
-    // Standard bounding box spatial mapping Intersection over Union math engine
     function calculateIoU(boxA, boxB) {
       const xA = Math.max(boxA.originX, boxB.originX);
       const yA = Math.max(boxA.originY, boxB.originY);
@@ -305,7 +284,6 @@
         display.innerText = "🚨 CRITICAL OVERTAKE THREAT 🚨";
         display.style.color = "#fff";
         display.style.backgroundColor = "#ff0000";
-        // Phone tactile pulse alert integration if supported
         if (navigator.vibrate) navigator.vibrate(200);
       } else if (ttc <= 5.0) {
         display.innerText = "⚠️ VEHICLE APPROACHING ⚠️";
@@ -337,7 +315,6 @@
       lastTimestamp = 0;
     }
 
-    // Attach click event to launch button
     document.getElementById('btn-launch').addEventListener('click', () => {
       initializeDetector();
     });
